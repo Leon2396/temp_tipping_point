@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TippingPoint — Predictive Hospital Bottleneck Intelligence</title>
+  <meta name="description" content="Real-time predictive hospital bottleneck intelligence dashboard with ML-powered risk scoring, what-if simulation, and intervention recommendations." />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            brand: {
+              50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd',
+              400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8',
+            },
+            surface: { 800: '#1e1b2e', 900: '#13111c', 950: '#0c0a14' },
+            risk: {
+              low: '#22c55e', medium: '#f59e0b', high: '#ef4444', critical: '#dc2626',
+            },
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'glow': 'glow 2s ease-in-out infinite alternate',
+            'slide-up': 'slideUp 0.5s ease-out',
+            'slide-in': 'slideIn 0.3s ease-out',
+            'fade-in': 'fadeIn 0.4s ease-out',
+            'ripple': 'ripple 1.5s ease-out infinite',
+          },
+          keyframes: {
+            glow: {
+              '0%': { boxShadow: '0 0 5px rgba(59,130,246,0.3)' },
+              '100%': { boxShadow: '0 0 20px rgba(59,130,246,0.6)' },
+            },
+            slideUp: {
+              '0%': { transform: 'translateY(20px)', opacity: '0' },
+              '100%': { transform: 'translateY(0)', opacity: '1' },
+            },
+            slideIn: {
+              '0%': { transform: 'translateX(-20px)', opacity: '0' },
+              '100%': { transform: 'translateX(0)', opacity: '1' },
+            },
+            fadeIn: {
+              '0%': { opacity: '0' },
+              '100%': { opacity: '1' },
+            },
+            ripple: {
+              '0%': { transform: 'scale(1)', opacity: '0.4' },
+              '100%': { transform: 'scale(1.8)', opacity: '0' },
+            },
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #0c0a14; color: #e2e8f0; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #1e1b2e; }
+    ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 3px; }
+
+    .glass {
+      background: rgba(30, 27, 46, 0.7);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .glass-light {
+      background: rgba(30, 27, 46, 0.4);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    /* Risk meter arc */
+    .risk-meter-bg { stroke: rgba(255,255,255,0.08); }
+    .risk-meter-fill { transition: stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1); }
+
+    /* Gradient borders */
+    .gradient-border {
+      position: relative;
+    }
+    .gradient-border::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(59,130,246,0.3), rgba(168,85,247,0.3));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    /* Chart canvas sizing */
+    .chart-container { position: relative; width: 100%; height: 200px; }
+
+    /* Spillover animation */
+    @keyframes spillFlow {
+      0% { stroke-dashoffset: 20; opacity: 0.8; }
+      100% { stroke-dashoffset: 0; opacity: 0.3; }
+    }
+    .spill-line {
+      stroke-dasharray: 5 5;
+      animation: spillFlow 1.5s linear infinite;
+    }
+
+    /* Tab active state */
+    .tab-active {
+      background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(168,85,247,0.1));
+      border-color: rgba(59,130,246,0.4);
+      color: #93c5fd;
+    }
+
+    /* Micro-interaction hover */
+    .card-hover {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .card-hover:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.3), 0 0 0 1px rgba(59,130,246,0.1);
+    }
+
+    /* Slider styling */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(59,130,246,0.4);
+    }
+
+    /* Toast notification */
+    .toast-enter { animation: slideUp 0.3s ease-out; }
+
+    /* Loading shimmer */
+    .shimmer {
+      background: linear-gradient(90deg, rgba(30,27,46,0) 0%, rgba(59,130,246,0.08) 50%, rgba(30,27,46,0) 100%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+  </style>
+</head>
+<body class="dark min-h-screen">
+  <div id="root"></div>
+
+  <!-- React & PropTypes via CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Lucide Icons via CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Recharts for charting -->
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+
+  <script type="text/babel" data-type="module">
+    const { useState, useEffect, useCallback, useRef, useMemo } = React;
+    const {
+      LineChart, Line, AreaChart, Area, BarChart, Bar, RadarChart, Radar,
+      PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+      XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+      PieChart, Pie, Cell, RadialBarChart, RadialBar
+    } = Recharts;
+
+    // ── API Helper ─────────────────────────────────────────────────────
+    const API = '/api';
+    const fetcher = async (path) => {
+      const res = await fetch(`${API}${path}`);
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      return res.json();
+    };
+    const poster = async (path, body) => {
+      const res = await fetch(`${API}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return res.json();
+    };
+
+    // ── Lucide Icon Component ──────────────────────────────────────────
+    function Icon({ name, size = 18, className = '', strokeWidth = 1.8 }) {
+      const ref = useRef(null);
+      useEffect(() => {
+        if (!ref.current) return;
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          ref.current.innerHTML = `<i data-lucide="${name}" class="${className}"></i>`;
+          try {
+            window.lucide.createIcons({
+              root: ref.current,
+              attrs: {
+                width: size,
+                height: size,
+                'stroke-width': strokeWidth,
+              }
+            });
+          } catch(e) {}
+        }
+      }, [name, size, className, strokeWidth]);
+      return <span ref={ref} className="inline-flex items-center justify-center align-middle" />;
+    }
+
+    // ── Risk Color Utils ───────────────────────────────────────────────
+    function riskColor(score) {
+      if (score >= 80) return '#ef4444';
+      if (score >= 60) return '#f59e0b';
+      if (score >= 40) return '#3b82f6';
+      return '#22c55e';
+    }
+    function riskLabel(score) {
+      if (score >= 80) return 'Critical';
+      if (score >= 60) return 'High';
+      if (score >= 40) return 'Moderate';
+      return 'Low';
+    }
+    function riskBg(score) {
+      if (score >= 80) return 'bg-red-500/10 border-red-500/30';
+      if (score >= 60) return 'bg-amber-500/10 border-amber-500/30';
+      if (score >= 40) return 'bg-blue-500/10 border-blue-500/30';
+      return 'bg-emerald-500/10 border-emerald-500/30';
+    }
+
+    // ── Tipping Point Meter (SVG Arc Gauge) ────────────────────────────
+    function TippingMeter({ score, size = 160, label = '' }) {
+      const radius = (size - 20) / 2;
+      const circumference = Math.PI * radius;
+      const offset = circumference - (score / 100) * circumference;
+      const color = riskColor(score);
+
+      return (
+        <div className="flex flex-col items-center">
+          <svg width={size} height={size / 2 + 20} viewBox={`0 0 ${size} ${size / 2 + 20}`}>
+            <path
+              d={`M 10 ${size / 2 + 10} A ${radius} ${radius} 0 0 1 ${size - 10} ${size / 2 + 10}`}
+              fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" strokeLinecap="round"
+            />
+            <path
+              d={`M 10 ${size / 2 + 10} A ${radius} ${radius} 0 0 1 ${size - 10} ${size / 2 + 10}`}
+              fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+              className="risk-meter-fill"
+              style={{ filter: `drop-shadow(0 0 8px ${color}60)` }}
+            />
+            <text x={size / 2} y={size / 2 - 5} textAnchor="middle" fill={color}
+              fontSize="28" fontWeight="800" fontFamily="Inter">{Math.round(score)}</text>
+            <text x={size / 2} y={size / 2 + 16} textAnchor="middle" fill="rgba(255,255,255,0.5)"
+              fontSize="11" fontWeight="500" fontFamily="Inter">{riskLabel(score)}</text>
+          </svg>
+          {label && <span className="text-xs text-slate-400 mt-1">{label}</span>}
+        </div>
+      );
+    }
+
+    // ── Toast System ───────────────────────────────────────────────────
+    let _toastId = 0;
+    function useToast() {
+      const [toasts, setToasts] = useState([]);
+      const addToast = useCallback((msg, type = 'info') => {
+        const id = ++_toastId;
+        setToasts(t => [...t, { id, msg, type }]);
+        setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4000);
+      }, []);
+      return { toasts, addToast };
+    }
+    function ToastContainer({ toasts }) {
+      return (
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
+          {toasts.map(t => (
+            <div key={t.id} className={`toast-enter glass rounded-xl px-5 py-3 text-sm font-medium shadow-2xl border
+              ${t.type === 'success' ? 'border-emerald-500/40 text-emerald-300' :
+                t.type === 'error' ? 'border-red-500/40 text-red-300' :
+                'border-blue-500/40 text-blue-300'}`}>
+              {t.msg}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // TAB COMPONENTS
+    // ═══════════════════════════════════════════════════════════════════
+
+    // ── 1. Dashboard Tab ───────────────────────────────────────────────
+    function DashboardTab({ data, onSelectDept }) {
+      if (!data) return <LoadingShimmer />;
+      const departments = data.departments || [];
+      const sorted = [...departments].sort((a, b) =>
+        (b.prediction?.risk_score || 0) - (a.prediction?.risk_score || 0)
+      );
+
+      return (
+        <div className="animate-fade-in">
+          {/* Summary stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {[
+              { label: 'Departments', value: departments.length, icon: 'building-2', color: 'text-blue-400' },
+              { label: 'Critical Alerts', value: departments.filter(d => (d.prediction?.risk_score||0) >= 80).length, icon: 'alert-triangle', color: 'text-red-400' },
+              { label: 'Total Beds', value: departments.reduce((s,d) => s + d.total_beds, 0), icon: 'bed-double', color: 'text-purple-400' },
+              { label: 'Avg Risk', value: Math.round(departments.reduce((s,d) => s + (d.prediction?.risk_score||0), 0) / Math.max(departments.length,1)), icon: 'activity', color: 'text-amber-400' },
+            ].map((s, i) => (
+              <div key={i} className="glass rounded-2xl p-4 card-hover">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`p-2 rounded-xl bg-white/5 ${s.color}`}><Icon name={s.icon} size={18} /></div>
+                  <span className="text-xs text-slate-400 font-medium">{s.label}</span>
+                </div>
+                <div className="text-2xl font-bold">{s.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Department risk cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {sorted.map((dept, i) => {
+              const risk = dept.prediction?.risk_score || 0;
+              const snap = dept.snapshot;
+              const occPct = dept.total_beds > 0 ? Math.round(snap?.occupied_beds / dept.total_beds * 100) : 0;
+              return (
+                <div key={dept.id}
+                  className={`glass rounded-2xl p-5 card-hover cursor-pointer border ${riskBg(risk)}`}
+                  style={{ animationDelay: `${i * 60}ms` }}
+                  onClick={() => onSelectDept(dept.id)}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="font-semibold text-sm">{dept.name}</h3>
+                      <span className="text-xs text-slate-500">{dept.total_beds} beds · {dept.total_staff} staff</span>
+                    </div>
+                    <TippingMeter score={risk} size={80} />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 mt-3">
+                    <div className="text-center p-2 rounded-lg bg-white/[0.03]">
+                      <div className="text-xs text-slate-500">Occupied</div>
+                      <div className="text-sm font-bold" style={{ color: riskColor(occPct) }}>{occPct}%</div>
+                    </div>
+                    <div className="text-center p-2 rounded-lg bg-white/[0.03]">
+                      <div className="text-xs text-slate-500">Queue</div>
+                      <div className="text-sm font-bold text-slate-200">{snap?.queue_length || 0}</div>
+                    </div>
+                    <div className="text-center p-2 rounded-lg bg-white/[0.03]">
+                      <div className="text-xs text-slate-500">Wait</div>
+                      <div className="text-sm font-bold text-slate-200">{snap?.avg_wait_minutes?.toFixed(0) || 0}m</div>
+                    </div>
+                  </div>
+
+                  {dept.prediction?.tipping_window?.start && (
+                    <div className="mt-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-300 flex items-center gap-2">
+                      <Icon name="clock" size={13} />
+                      Tipping: {new Date(dept.prediction.tipping_window.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}
+                      – {new Date(dept.prediction.tipping_window.end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}
+                    </div>
+                  )}
+
+                  {dept.prediction?.spillover?.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {dept.prediction.spillover.map(s => (
+                        <span key={s} className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/20">
+                          → {s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // ── 2. Ripple & Hidden Capacity Tab ────────────────────────────────
+    function RippleTab({ data, predictions }) {
+      const [selected, setSelected] = useState(null);
+      const departments = data?.departments || [];
+      const preds = predictions?.predictions || [];
+
+      const selectedPred = selected ? preds.find(p => p.department_id === selected) : (preds[0] || null);
+      const selectedDept = selected
+        ? departments.find(d => d.id === selected)
+        : departments[0];
+
+      return (
+        <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Spillover Map */}
+          <div className="lg:col-span-2 glass rounded-2xl p-6">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <Icon name="network" size={20} className="text-purple-400" />
+              Spillover Ripple Map
+            </h3>
+            <div className="relative" style={{ height: 350 }}>
+              <svg width="100%" height="100%" viewBox="0 0 600 350">
+                {/* Draw departments as nodes */}
+                {departments.map((dept, i) => {
+                  const cols = Math.min(departments.length, 4);
+                  const row = Math.floor(i / cols);
+                  const col = i % cols;
+                  const cx = 80 + col * 150;
+                  const cy = 80 + row * 130;
+                  const pred = preds.find(p => p.department_id === dept.id);
+                  const risk = pred?.risk_score || 0;
+                  const color = riskColor(risk);
+                  const isSelected = dept.id === (selected || departments[0]?.id);
+
+                  return (
+                    <g key={dept.id} onClick={() => setSelected(dept.id)} style={{ cursor: 'pointer' }}>
+                      {/* Ripple effect for high-risk */}
+                      {risk > 70 && (
+                        <>
+                          <circle cx={cx} cy={cy} r={38} fill="none" stroke={color} strokeWidth="1" opacity="0.3" className="animate-ripple" />
+                          <circle cx={cx} cy={cy} r={42} fill="none" stroke={color} strokeWidth="0.5" opacity="0.15" className="animate-ripple" style={{ animationDelay: '0.5s' }} />
+                        </>
+                      )}
+                      <circle cx={cx} cy={cy} r={32} fill={`${color}15`} stroke={color} strokeWidth={isSelected ? 2.5 : 1.5} />
+                      <text x={cx} y={cy - 5} textAnchor="middle" fill="white" fontSize="10" fontWeight="600" fontFamily="Inter">
+                        {dept.name.length > 12 ? dept.name.slice(0, 11) + '…' : dept.name}
+                      </text>
+                      <text x={cx} y={cy + 10} textAnchor="middle" fill={color} fontSize="13" fontWeight="800" fontFamily="Inter">
+                        {Math.round(risk)}
+                      </text>
+
+                      {/* Draw spillover arrows */}
+                      {pred?.spillover?.map(target => {
+                        const targetDept = departments.find(d => d.name === target);
+                        if (!targetDept) return null;
+                        const ti = departments.indexOf(targetDept);
+                        const tRow = Math.floor(ti / cols);
+                        const tCol = ti % cols;
+                        const tx = 80 + tCol * 150;
+                        const ty = 80 + tRow * 130;
+                        return (
+                          <line key={`${dept.id}-${target}`}
+                            x1={cx} y1={cy + 32} x2={tx} y2={ty - 32}
+                            stroke={color} strokeWidth="1.5" className="spill-line"
+                            markerEnd="url(#arrowhead)" />
+                        );
+                      })}
+                    </g>
+                  );
+                })}
+                <defs>
+                  <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                    <polygon points="0 0, 8 3, 0 6" fill="rgba(168,85,247,0.6)" />
+                  </marker>
+                </defs>
+              </svg>
+            </div>
+          </div>
+
+          {/* Root Cause Factors */}
+          <div className="glass rounded-2xl p-6">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <Icon name="search" size={20} className="text-amber-400" />
+              Root-Cause Factors
+            </h3>
+            {selectedPred && (
+              <div className="space-y-2">
+                <div className="text-sm text-slate-400 mb-3">
+                  {selectedPred.department_name} — Risk {selectedPred.risk_score?.toFixed(1)}
+                </div>
+                {(selectedPred.factors || []).map((f, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03]">
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">{f.factor}</div>
+                      <div className="text-xs text-slate-500">Value: {f.value}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold" style={{ color: riskColor(f.weight * 2) }}>{f.weight}%</div>
+                      <div className="w-16 h-1.5 rounded-full bg-white/10 mt-1">
+                        <div className="h-full rounded-full" style={{ width: `${Math.min(f.weight, 100)}%`, background: riskColor(f.weight * 2) }} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {selectedPred.factors?.length === 0 && (
+                  <div className="text-center text-slate-500 text-sm py-8">No significant risk factors detected.</div>
+                )}
+
+                {/* Hidden Capacity indicators */}
+                {selectedDept?.snapshot && (
+                  <div className="mt-6 pt-4 border-t border-white/5">
+                    <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                      <Icon name="unlock" size={15} className="text-emerald-400" />
+                      Hidden Capacity
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                        <span className="text-xs text-slate-400">Pending Discharges</span>
+                        <span className="text-sm font-bold text-emerald-400">{selectedDept.snapshot.pending_discharges} beds</span>
+                      </div>
+                      <div className="flex justify-between items-center p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                        <span className="text-xs text-slate-400">Pending Cleaning</span>
+                        <span className="text-sm font-bold text-emerald-400">{selectedDept.snapshot.pending_cleaning} beds</span>
+                      </div>
+                      <div className="flex justify-between items-center p-2 rounded-lg bg-blue-500/5 border border-blue-500/10">
+                        <span className="text-xs text-slate-400">Recoverable in 1hr</span>
+                        <span className="text-sm font-bold text-blue-400">
+                          {selectedDept.snapshot.pending_discharges + selectedDept.snapshot.pending_cleaning} beds
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ── 3. What-If Simulator Tab ───────────────────────────────────────
+    function SimulatorTab({ departments, addToast }) {
+      const [deptId, setDeptId] = useState(1);
+      const [params, setParams] = useState({
+        dengue_multiplier: 1.0,
+        monsoon_multiplier: 1.0,
+        staff_shortage_pct: 0,
+        extra_beds: 0,
+        fast_discharge: false,
+        duration_hours: 24,
+      });
+      const [results, setResults] = useState(null);
+      const [loading, setLoading] = useState(false);
+      const [baseline, setBaseline] = useState(null);
+
+      const runSim = async () => {
+        setLoading(true);
+        try {
+          // Run baseline first
+          const base = await poster('/simulate', { department_id: deptId, duration_hours: params.duration_hours, dengue_multiplier: 1, monsoon_multiplier: 1, staff_shortage_pct: 0, extra_beds: 0, fast_discharge: false });
+          setBaseline(base);
+          const res = await poster('/simulate', { department_id: deptId, ...params });
+          setResults(res);
+          addToast('Simulation complete', 'success');
+        } catch (e) {
+          addToast('Simulation failed: ' + e.message, 'error');
+        }
+        setLoading(false);
+      };
+
+      const deptList = departments || [];
+
+      return (
+        <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Controls */}
+          <div className="glass rounded-2xl p-6">
+            <h3 className="text-lg font-bold mb-5 flex items-center gap-2">
+              <Icon name="sliders-horizontal" size={20} className="text-blue-400" />
+              Scenario Parameters
+            </h3>
+
+            <div className="space-y-5">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Department</label>
+                <select value={deptId} onChange={e => setDeptId(Number(e.target.value))}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/40">
+                  {deptList.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+
+              {[
+                { key: 'dengue_multiplier', label: 'Dengue Inflow Multiplier', min: 0.5, max: 5, step: 0.1, suffix: '×' },
+                { key: 'monsoon_multiplier', label: 'Monsoon Inflow Multiplier', min: 0.5, max: 5, step: 0.1, suffix: '×' },
+                { key: 'staff_shortage_pct', label: 'Staff Shortage', min: 0, max: 80, step: 5, suffix: '%' },
+                { key: 'extra_beds', label: 'Extra Beds Added', min: 0, max: 30, step: 1, suffix: '' },
+                { key: 'duration_hours', label: 'Simulation Duration', min: 6, max: 72, step: 6, suffix: 'hrs' },
+              ].map(s => (
+                <div key={s.key}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400">{s.label}</span>
+                    <span className="text-slate-200 font-semibold">{params[s.key]}{s.suffix}</span>
+                  </div>
+                  <input type="range" className="w-full" min={s.min} max={s.max} step={s.step}
+                    value={params[s.key]} onChange={e => setParams(p => ({...p, [s.key]: Number(e.target.value)}))} />
+                </div>
+              ))}
+
+              <label className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] cursor-pointer">
+                <input type="checkbox" checked={params.fast_discharge}
+                  onChange={e => setParams(p => ({...p, fast_discharge: e.target.checked}))}
+                  className="w-4 h-4 rounded accent-blue-500" />
+                <div>
+                  <div className="text-sm font-medium">Fast-Track Discharge</div>
+                  <div className="text-xs text-slate-500">35% faster bed turnover</div>
+                </div>
+              </label>
+
+              <button onClick={runSim} disabled={loading}
+                className="w-full py-3 rounded-xl font-semibold text-sm bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 transition-all disabled:opacity-50 shadow-lg shadow-blue-500/20">
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" strokeDasharray="30 70" /></svg>
+                    Running Simulation…
+                  </span>
+                ) : 'Run Simulation'}
+              </button>
+            </div>
+          </div>
+
+          {/* Results */}
+          <div className="lg:col-span-2 space-y-4">
+            {results ? (
+              <>
+                {/* KPI Comparison */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Avg Wait', val: results.results.avg_wait_minutes + 'm', base: baseline?.results.avg_wait_minutes + 'm', icon: 'clock' },
+                    { label: 'Peak Occ.', val: results.results.peak_occupancy_pct + '%', base: baseline?.results.peak_occupancy_pct + '%', icon: 'trending-up' },
+                    { label: 'Turned Away', val: results.results.patients_turned_away, base: baseline?.results.patients_turned_away, icon: 'user-x' },
+                    { label: 'Bottleneck Hrs', val: results.results.bottleneck_hours, base: baseline?.results.bottleneck_hours, icon: 'alert-circle' },
+                  ].map((kpi, i) => {
+                    const improved = parseFloat(kpi.val) < parseFloat(kpi.base);
+                    return (
+                      <div key={i} className="glass rounded-xl p-4 card-hover">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Icon name={kpi.icon} size={14} className="text-slate-400" />
+                          <span className="text-xs text-slate-500">{kpi.label}</span>
+                        </div>
+                        <div className="text-xl font-bold">{kpi.val}</div>
+                        {baseline && (
+                          <div className={`text-xs mt-1 ${improved ? 'text-emerald-400' : 'text-red-400'}`}>
+                            vs baseline: {kpi.base}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Timeline Chart */}
+                <div className="glass rounded-2xl p-5">
+                  <h4 className="text-sm font-semibold mb-4">Occupancy & Queue Over Time</h4>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <AreaChart data={results.timeline}>
+                      <defs>
+                        <linearGradient id="occGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="time_minutes" tick={{ fontSize: 10, fill: '#64748b' }}
+                        tickFormatter={v => Math.round(v / 60) + 'h'} />
+                      <YAxis tick={{ fontSize: 10, fill: '#64748b' }} />
+                      <Tooltip contentStyle={{ background: '#1e1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12 }} />
+                      <Area type="monotone" dataKey="occupancy_pct" stroke="#3b82f6" fill="url(#occGrad)" strokeWidth={2} name="Occupancy %" />
+                      <Line type="monotone" dataKey="queue_length" stroke="#f59e0b" strokeWidth={2} dot={false} name="Queue" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
+            ) : (
+              <div className="glass rounded-2xl p-12 flex flex-col items-center justify-center text-center h-full min-h-[400px]">
+                <Icon name="flask-conical" size={48} className="text-slate-600 mb-4" />
+                <h3 className="text-lg font-semibold text-slate-400 mb-2">Configure & Run</h3>
+                <p className="text-sm text-slate-500 max-w-sm">
+                  Adjust scenario parameters on the left and click "Run Simulation" to see predicted outcomes.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ── 4. Best-Fix Recommendations Tab ────────────────────────────────
+    function InterventionsTab({ addToast }) {
+      const [interventions, setInterventions] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        fetcher('/interventions').then(d => {
+          setInterventions(d.interventions || []);
+          setLoading(false);
+        });
+      }, []);
+
+      const approve = async (id) => {
+        try {
+          await poster(`/interventions/${id}/approve`, { approved_by: 'Dr. Admin' });
+          setInterventions(iv => iv.map(i => i.id === id ? {...i, approved: true, approved_by: 'Dr. Admin'} : i));
+          addToast('Intervention approved ✓', 'success');
+        } catch (e) {
+          addToast('Approval failed', 'error');
+        }
+      };
+
+      const effortColors = { low: 'text-emerald-400 bg-emerald-500/10', medium: 'text-amber-400 bg-amber-500/10', high: 'text-red-400 bg-red-500/10' };
+
+      return (
+        <div className="animate-fade-in">
+          <div className="glass rounded-2xl p-6">
+            <h3 className="text-lg font-bold mb-5 flex items-center gap-2">
+              <Icon name="lightbulb" size={20} className="text-amber-400" />
+              Ranked Intervention Recommendations
+            </h3>
+            <div className="space-y-3">
+              {interventions.map((iv, i) => (
+                <div key={iv.id} className="flex items-center gap-4 p-4 rounded-xl bg-white/[0.03] border border-white/5 card-hover"
+                  style={{ animationDelay: `${i * 80}ms` }}>
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 text-sm font-bold text-slate-400">
+                    #{i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="text-sm font-semibold truncate">{iv.name}</h4>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${effortColors[iv.effort_level]}`}>
+                        {iv.effort_level} effort
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 truncate">{iv.description}</p>
+                  </div>
+                  <div className="text-right mr-2">
+                    <div className="text-lg font-bold" style={{ color: riskColor(100 - iv.impact_score) }}>{iv.impact_score}</div>
+                    <div className="text-[10px] text-slate-500">impact</div>
+                  </div>
+                  {iv.approved ? (
+                    <div className="flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+                      <Icon name="check-circle" size={14} />
+                      Approved
+                    </div>
+                  ) : (
+                    <button onClick={() => approve(iv.id)}
+                      className="px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 transition-all shadow-lg shadow-blue-500/15">
+                      Approve
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── 5. Alerts Tab ──────────────────────────────────────────────────
+    function AlertsTab({ addToast }) {
+      const [channel, setChannel] = useState('telegram');
+      const [recipient, setRecipient] = useState('');
+      const [message, setMessage] = useState('');
+      const [subject, setSubject] = useState('TippingPoint Alert');
+      const [history, setHistory] = useState([]);
+      const [sending, setSending] = useState(false);
+
+      useEffect(() => {
+        fetcher('/alerts/history').then(d => setHistory(d.alerts || []));
+      }, []);
+
+      const send = async () => {
+        if (!recipient || !message) {
+          addToast('Fill in recipient and message', 'error');
+          return;
+        }
+        setSending(true);
+        try {
+          const res = await poster('/alerts/send', { channel, recipient, message, subject });
+          addToast(`Alert sent via ${channel} ✓`, 'success');
+          setHistory(h => [{ id: res.log_id, channel, recipient, message: message.slice(0, 200), sent_at: new Date().toISOString(), success: true }, ...h]);
+          setMessage('');
+        } catch (e) {
+          addToast('Failed to send alert', 'error');
+        }
+        setSending(false);
+      };
+
+      return (
+        <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Send Alert */}
+          <div className="glass rounded-2xl p-6">
+            <h3 className="text-lg font-bold mb-5 flex items-center gap-2">
+              <Icon name="bell-ring" size={20} className="text-blue-400" />
+              Send Alert
+            </h3>
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                {['telegram', 'email'].map(ch => (
+                  <button key={ch} onClick={() => setChannel(ch)}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all border
+                      ${channel === ch ? 'bg-blue-500/15 border-blue-500/30 text-blue-300' : 'bg-white/[0.03] border-white/5 text-slate-400 hover:bg-white/[0.06]'}`}>
+                    <Icon name={ch === 'telegram' ? 'send' : 'mail'} size={14} />
+                    <span className="ml-2 capitalize">{ch}</span>
+                  </button>
+                ))}
+              </div>
+              <input type="text" placeholder={channel === 'telegram' ? 'Chat ID (e.g. @ops-team)' : 'Email address'}
+                value={recipient} onChange={e => setRecipient(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500/40" />
+              {channel === 'email' && (
+                <input type="text" placeholder="Subject" value={subject} onChange={e => setSubject(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500/40" />
+              )}
+              <textarea placeholder="Alert message…" value={message} onChange={e => setMessage(e.target.value)} rows={4}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500/40 resize-none" />
+              <button onClick={send} disabled={sending}
+                className="w-full py-3 rounded-xl font-semibold text-sm bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 transition-all disabled:opacity-50">
+                {sending ? 'Sending…' : 'Send Alert'}
+              </button>
+            </div>
+          </div>
+
+          {/* History */}
+          <div className="glass rounded-2xl p-6">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <Icon name="history" size={20} className="text-slate-400" />
+              Alert History
+            </h3>
+            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+              {history.length === 0 && <div className="text-center text-slate-500 text-sm py-8">No alerts sent yet.</div>}
+              {history.map(a => (
+                <div key={a.id} className="p-3 rounded-xl bg-white/[0.03] border border-white/5">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <Icon name={a.channel === 'telegram' ? 'send' : 'mail'} size={13} className="text-blue-400" />
+                      <span className="text-xs font-medium text-slate-300">{a.recipient}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500">{new Date(a.sent_at).toLocaleString()}</span>
+                  </div>
+                  <p className="text-xs text-slate-400 line-clamp-2">{a.message}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── 6. Historical Replay Tab ───────────────────────────────────────
+    function ReplayTab({ addToast }) {
+      const [scenarios, setScenarios] = useState([]);
+      const [selected, setSelected] = useState(null);
+      const [replayData, setReplayData] = useState(null);
+      const [loading, setLoading] = useState(false);
+
+      useEffect(() => {
+        fetcher('/replay/scenarios').then(d => setScenarios(d.scenarios || []));
+      }, []);
+
+      const loadReplay = async (id) => {
+        setSelected(id);
+        setLoading(true);
+        try {
+          const d = await fetcher(`/replay/${id}/simulate`);
+          setReplayData(d);
+          addToast('Replay loaded', 'success');
+        } catch (e) {
+          addToast('Replay failed', 'error');
+        }
+        setLoading(false);
+      };
+
+      return (
+        <div className="animate-fade-in space-y-6">
+          {/* Scenario Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {scenarios.map(s => (
+              <div key={s.id}
+                className={`glass rounded-2xl p-5 card-hover cursor-pointer border transition-all
+                  ${selected === s.id ? 'border-blue-500/40 bg-blue-500/5' : 'border-white/5'}`}
+                onClick={() => loadReplay(s.id)}>
+                <h4 className="text-sm font-bold mb-1">{s.name}</h4>
+                <p className="text-xs text-slate-500 mb-3 line-clamp-2">{s.description}</p>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="text-slate-400">
+                    Peak: <span className="text-amber-400 font-semibold">{s.peak_occupancy_pct}%</span>
+                  </span>
+                  <span className="text-slate-400">
+                    Accuracy: <span className="text-emerald-400 font-semibold">{s.prediction_accuracy}%</span>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Replay Results */}
+          {loading && <LoadingShimmer />}
+          {replayData && !loading && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Report Card */}
+              <div className="glass rounded-2xl p-6">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Icon name="clipboard-check" size={20} className="text-emerald-400" />
+                  Accuracy Report Card
+                </h3>
+                <div className="space-y-4">
+                  <div className="text-center p-4 rounded-xl bg-white/[0.03]">
+                    <div className="text-3xl font-black text-emerald-400">{replayData.scenario.prediction_accuracy}%</div>
+                    <div className="text-xs text-slate-500 mt-1">Prediction Accuracy</div>
+                  </div>
+                  <div className="text-center p-4 rounded-xl bg-white/[0.03]">
+                    <div className="text-2xl font-bold text-blue-400">±{replayData.scenario.mae}</div>
+                    <div className="text-xs text-slate-500 mt-1">Mean Absolute Error</div>
+                  </div>
+                  <div className="space-y-2 mt-4">
+                    {[
+                      { label: 'Wait Time Reduction', value: replayData.report_card.wait_reduction_pct + '%', good: replayData.report_card.wait_reduction_pct > 0 },
+                      { label: 'Occupancy Reduction', value: replayData.report_card.occupancy_reduction_pct + '%', good: replayData.report_card.occupancy_reduction_pct > 0 },
+                      { label: 'Extra Patients Served', value: replayData.report_card.extra_patients_served, good: replayData.report_card.extra_patients_served > 0 },
+                      { label: 'Bottleneck Hrs Saved', value: replayData.report_card.bottleneck_hours_saved, good: replayData.report_card.bottleneck_hours_saved > 0 },
+                    ].map((m, i) => (
+                      <div key={i} className="flex justify-between items-center p-2.5 rounded-lg bg-white/[0.03]">
+                        <span className="text-xs text-slate-400">{m.label}</span>
+                        <span className={`text-sm font-bold ${m.good ? 'text-emerald-400' : 'text-red-400'}`}>{m.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Baseline vs Optimized Comparison */}
+              <div className="lg:col-span-2 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {['baseline', 'optimized'].map(variant => {
+                    const d = replayData[variant];
+                    const isOpt = variant === 'optimized';
+                    return (
+                      <div key={variant} className={`glass rounded-2xl p-5 border ${isOpt ? 'border-emerald-500/20' : 'border-white/5'}`}>
+                        <h4 className={`text-sm font-bold mb-3 ${isOpt ? 'text-emerald-400' : 'text-slate-300'}`}>
+                          {isOpt ? '✨ With Interventions' : '⚡ Baseline'}
+                        </h4>
+                        <div className="space-y-2 text-xs">
+                          <div className="flex justify-between"><span className="text-slate-500">Avg Wait</span><span className="font-semibold">{d.avg_wait}m</span></div>
+                          <div className="flex justify-between"><span className="text-slate-500">Peak Occ.</span><span className="font-semibold">{d.peak_occupancy}%</span></div>
+                          <div className="flex justify-between"><span className="text-slate-500">Turned Away</span><span className="font-semibold">{d.turned_away}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-500">Bottleneck Hrs</span><span className="font-semibold">{d.bottleneck_hours}</span></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Timeline comparison chart */}
+                <div className="glass rounded-2xl p-5">
+                  <h4 className="text-sm font-semibold mb-4">Occupancy Timeline: Baseline vs Optimized</h4>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <AreaChart data={replayData.baseline.timeline.map((b, i) => ({
+                      time: Math.round(b.time_minutes / 60),
+                      baseline: b.occupancy_pct,
+                      optimized: replayData.optimized.timeline[i]?.occupancy_pct || 0,
+                    }))}>
+                      <defs>
+                        <linearGradient id="baseGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="optGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={v => v + 'h'} />
+                      <YAxis tick={{ fontSize: 10, fill: '#64748b' }} domain={[0, 110]} />
+                      <Tooltip contentStyle={{ background: '#1e1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12 }} />
+                      <Area type="monotone" dataKey="baseline" stroke="#ef4444" fill="url(#baseGrad)" strokeWidth={2} name="Baseline" />
+                      <Area type="monotone" dataKey="optimized" stroke="#22c55e" fill="url(#optGrad)" strokeWidth={2} name="Optimized" />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── Department Detail Modal ─────────────────────────────────────────
+    function DeptDetailModal({ deptId, onClose }) {
+      const [tsData, setTsData] = useState(null);
+      useEffect(() => {
+        if (deptId) {
+          fetcher(`/departments/${deptId}/timeseries?hours=72`).then(setTsData);
+        }
+      }, [deptId]);
+
+      if (!deptId) return null;
+
+      return (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+          <div className="glass rounded-3xl p-6 max-w-4xl w-full mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-xl font-bold">{tsData?.department || 'Loading...'}</h2>
+              <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 transition-colors">
+                <Icon name="x" size={20} />
+              </button>
+            </div>
+
+            {tsData?.data?.length > 0 ? (
+              <div className="space-y-5">
+                {/* Occupancy chart */}
+                <div>
+                  <h4 className="text-sm font-semibold mb-3 text-slate-300">Bed Occupancy (72h)</h4>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <AreaChart data={tsData.data.map(d => ({...d, time: new Date(d.timestamp).toLocaleTimeString([], {hour:'2-digit'})}))}>
+                      <defs>
+                        <linearGradient id="detailOcc" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#64748b' }} interval={11} />
+                      <YAxis tick={{ fontSize: 10, fill: '#64748b' }} />
+                      <Tooltip contentStyle={{ background: '#1e1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12 }} />
+                      <Area type="monotone" dataKey="occupancy_pct" stroke="#8b5cf6" fill="url(#detailOcc)" strokeWidth={2} name="Occupancy %" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Wait + Queue */}
+                <div>
+                  <h4 className="text-sm font-semibold mb-3 text-slate-300">Wait Time & Queue</h4>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <LineChart data={tsData.data.map(d => ({...d, time: new Date(d.timestamp).toLocaleTimeString([], {hour:'2-digit'})}))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#64748b' }} interval={11} />
+                      <YAxis tick={{ fontSize: 10, fill: '#64748b' }} />
+                      <Tooltip contentStyle={{ background: '#1e1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12 }} />
+                      <Line type="monotone" dataKey="avg_wait_minutes" stroke="#f59e0b" strokeWidth={2} dot={false} name="Wait (min)" />
+                      <Line type="monotone" dataKey="queue_length" stroke="#3b82f6" strokeWidth={2} dot={false} name="Queue" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* External factors */}
+                <div>
+                  <h4 className="text-sm font-semibold mb-3 text-slate-300">External Factors</h4>
+                  <ResponsiveContainer width="100%" height={150}>
+                    <AreaChart data={tsData.data.map(d => ({...d, time: new Date(d.timestamp).toLocaleTimeString([], {hour:'2-digit'})}))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="time" tick={{ fontSize: 9, fill: '#64748b' }} interval={11} />
+                      <YAxis tick={{ fontSize: 10, fill: '#64748b' }} domain={[0, 1]} />
+                      <Tooltip contentStyle={{ background: '#1e1b2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12 }} />
+                      <Area type="monotone" dataKey="dengue_factor" stroke="#ef4444" fill="#ef444420" strokeWidth={1.5} name="Dengue" />
+                      <Area type="monotone" dataKey="monsoon_factor" stroke="#3b82f6" fill="#3b82f620" strokeWidth={1.5} name="Monsoon" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ) : (
+              <LoadingShimmer />
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Loading Shimmer ────────────────────────────────────────────────
+    function LoadingShimmer() {
+      return (
+        <div className="space-y-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="glass rounded-2xl p-6 shimmer h-32" />
+          ))}
+        </div>
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // MAIN APP
+    // ═══════════════════════════════════════════════════════════════════
+    function App() {
+      const [activeTab, setActiveTab] = useState('dashboard');
+      const [dashData, setDashData] = useState(null);
+      const [predictions, setPredictions] = useState(null);
+      const [selectedDept, setSelectedDept] = useState(null);
+      const { toasts, addToast } = useToast();
+
+      useEffect(() => {
+        fetcher('/dashboard').then(setDashData).catch(() => addToast('Failed to load dashboard', 'error'));
+        fetcher('/predictions').then(setPredictions).catch(() => {});
+      }, []);
+
+      const tabs = [
+        { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
+        { id: 'ripple', label: 'Ripple Map', icon: 'network' },
+        { id: 'simulator', label: 'What-If', icon: 'flask-conical' },
+        { id: 'interventions', label: 'Best-Fix', icon: 'lightbulb' },
+        { id: 'alerts', label: 'Alerts', icon: 'bell-ring' },
+        { id: 'replay', label: 'Replay', icon: 'history' },
+      ];
+
+      return (
+        <div className="min-h-screen">
+          {/* Header */}
+          <header className="sticky top-0 z-30 glass border-b border-white/5">
+            <div className="max-w-[1440px] mx-auto px-6 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                  <Icon name="activity" size={18} className="text-white" />
+                </div>
+                <div>
+                  <h1 className="text-base font-bold tracking-tight">TippingPoint</h1>
+                  <p className="text-[10px] text-slate-500 -mt-0.5">Predictive Bottleneck Intelligence</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live
+                </div>
+                <div className="text-xs text-slate-500">{new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</div>
+              </div>
+            </div>
+          </header>
+
+          {/* Navigation Tabs */}
+          <nav className="sticky top-[56px] z-20 glass-light border-b border-white/5">
+            <div className="max-w-[1440px] mx-auto px-6">
+              <div className="flex gap-1 overflow-x-auto py-2 scrollbar-hide">
+                {tabs.map(tab => (
+                  <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap border
+                      ${activeTab === tab.id ? 'tab-active' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'}`}>
+                    <Icon name={tab.icon} size={15} />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </nav>
+
+          {/* Main Content */}
+          <main className="max-w-[1440px] mx-auto px-6 py-6">
+            {activeTab === 'dashboard' && <DashboardTab data={dashData} onSelectDept={setSelectedDept} />}
+            {activeTab === 'ripple' && <RippleTab data={dashData} predictions={predictions} />}
+            {activeTab === 'simulator' && <SimulatorTab departments={dashData?.departments} addToast={addToast} />}
+            {activeTab === 'interventions' && <InterventionsTab addToast={addToast} />}
+            {activeTab === 'alerts' && <AlertsTab addToast={addToast} />}
+            {activeTab === 'replay' && <ReplayTab addToast={addToast} />}
+          </main>
+
+          {/* Department Detail Modal */}
+          <DeptDetailModal deptId={selectedDept} onClose={() => setSelectedDept(null)} />
+
+          {/* Toast Notifications */}
+          <ToastContainer toasts={toasts} />
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
